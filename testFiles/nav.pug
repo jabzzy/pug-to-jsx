@@ -1,0 +1,19 @@
+mixin nav(type, links, section)
+    nav.nav(class=`nav_type_${type}`)
+        if type === 'main'
+            input.nav__opener#menu-opener(type='checkbox')
+            label(for='menu-opener').nav__x &times;
+            label(for='menu-opener').nav__item.nav__item_type_opener-label.nav__item_active
+                span.nav__item-inner-wrap Меню
+        ul.nav__list
+            each link in links
+                if link.key === 'separator'
+                    li.nav__item.nav__item_type_separator
+                else
+                    - var isActive = section === link.key;
+                    li(class=`nav__item${isActive ? ' nav__item_active' : ''}`)
+                        a(class='link nav__link', href=link.href)
+                            if isActive
+                                .nav__link-inner-wrap= link.label
+                            else
+                                = link.label

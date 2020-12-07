@@ -1,0 +1,8 @@
+include nav.pug
+include logo.pug
+
+mixin header(brand, navigation, section)
+    header.page__header.page__section
+        .header.grid__row.grid__row_type_contain
+            +logo({ brand: brand, type: 'default' })
+            +nav('main', navigation.main, section)

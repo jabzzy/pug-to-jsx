@@ -1,0 +1,6 @@
+mixin logo(logo)
+    - logo || (logo = {});
+    - logo.type || (logo.type = 'default');
+    #{logo.brand ? 'h1' : 'div'}.logo&attributes(attributes)
+        a(href='/' class=`logo__link logo__link_type_${logo.type}`)
+            = logo.brand ? `${logo.brand} — ведущий организатор выставок в Крыму` : ''

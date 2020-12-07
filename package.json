@@ -1,0 +1,20 @@
+{
+  "name": "pug-to-jsx",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/generator": "^7.12.5",
+    "@babel/parser": "^7.12.7",
+    "@babel/types": "^7.12.10",
+    "ast-types": "^0.14.2",
+    "pug-lexer": "^5.0.0",
+    "pug-load": "^3.0.0",
+    "pug-parser": "^6.0.0"
+  }
+}
