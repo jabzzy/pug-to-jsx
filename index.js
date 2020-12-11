@@ -38,14 +38,11 @@ const pugAttrValToJsx = (attrName, val) => {
 function getEsNode(pugNode, esChildren) {
     let esNode;
 
-    // if (!Array.isArray(esChildren)) esChildren = [esChildren];
-
     if (pugNode.type === 'Text') {
-        esNode = b.jsxText(pugNode.val);
-    } else if (pugNode.type === 'Code') {
+        esNode = b.jsxText(pugNode.val); // string
+    } else if (pugNode.type === 'Code') { // prop access
         esNode = parseExpression(pugNode.val);
-    } else if (pugNode.type === 'Block') { // code block
-        // esNode = b.blockStatement(esChildren);
+    } else if (pugNode.type === 'Block') {
         esNode = esChildren;
     } else if (pugNode.type === 'Mixin' && pugNode.call === false) { // component declaration
         esNode = b.variableDeclaration(
