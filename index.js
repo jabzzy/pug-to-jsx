@@ -10,12 +10,13 @@ https://astexplorer.net/#/gist/6beeac58462e0cf754eaf0599965c6da/435c77abb125380b
 */
 
 // const writeFileSync = require('fs').writeFileSync;
+const debug = require('debug')('pug-to-jsx');
 const generate = require('@babel/generator').default;
-const parseExpression = require('@babel/parser').parseExpression;
+const { parse: parseEs, parseExpression } = require('@babel/parser');
 const b = require('@babel/types');
 const lex = require('pug-lexer');
 const load = require('pug-load');
-const parse = require('pug-parser');
+const parsePug = require('pug-parser');
 
 const pugAttrNameToJsx = name => {
     switch (name) {
@@ -43,12 +44,14 @@ const pugAttrValToJsx = (attrName, val) => {
 function getEsNode(pugNode, esChildren) {
     let esNode;
 
+    debug(`${pugNode.type}: %O`, pugNode);
+
     if (pugNode.type === 'Text') {
         // intentionally streamlining this case for now since formatting is done by the `generator` anyway
         if (pugNode.val.replace(/\s|\n/g, '').length === 0) esNode = b.emptyStatement();
         else esNode = b.jsxText(pugNode.val); // string
     } else if (pugNode.type === 'Code') { // prop access
-        esNode = parseExpression(pugNode.val);
+        esNode = parseEs(pugNode.val).program.body;
     } else if (pugNode.type === 'Block') {
         esNode = esChildren;
     } else if (pugNode.type === 'Comment') {
@@ -122,16 +125,19 @@ module.exports.convert = function convert(paths) {
     paths.forEach(path => {
         const pugAst = load.file(path, {
             lex,
-            parse,
+            parse: parsePug,
             resolve: function (filename, source, options) {
                 console.log('"' + filename + '" file requested from "' + source + '".');
                 return load.resolve(filename, source, options);
             }
         });
 
+        debug('Pug AST: %O', pugAst);
         const walkRes = walk(pugAst);
-        const esAst = b.program(walkRes);
+        const esAst = b.program([].concat(...walkRes));
+        debug('ES AST: %O', esAst);
         const { code } = generate(esAst);
+        debug('resulting code: %o', code);
 
         // writeFileSync(path.replace(/\.pug$/, '.jsx'), code);
         res[path] = code;

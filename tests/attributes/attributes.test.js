@@ -4,7 +4,7 @@ const { convert } = require('../../index');
 
 describe('attributes / https://pugjs.org/language/attributes.html', () => {
     test.each([
-        ['./attributes'],
+        // ['./attributes'],
         ['./attributes-expr'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
