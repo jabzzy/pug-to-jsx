@@ -53,6 +53,8 @@ function getEsNode(pugNode, esChildren) {
         esNode = esChildren;
     } else if (pugNode.type === 'Comment') {
         esNode = b.emptyStatement(); // FIXME: add actual comments
+    } else if (pugNode.type === 'Doctype') {
+        esNode = b.emptyStatement();
     } else if (pugNode.type === 'Mixin' && pugNode.call === false) { // component declaration
         esNode = b.variableDeclaration(
             'const',
