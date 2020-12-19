@@ -8,6 +8,10 @@ describe('attributes / https://pugjs.org/language/attributes.html', () => {
         ['./attributes-expr'],
         ['./template-strings-attributes'],
         // ['./quoted-attributes'], // FIXME: https://pugjs.org/language/attributes.html#quoted-attributes never used this stuff
+        ['./attribute-interpolation-1'],
+        ['./attribute-interpolation-2'],
+        ['./boolean-attributes-1'],
+        ['./boolean-attributes-2'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 
