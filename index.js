@@ -29,9 +29,14 @@ const pugAttrNameToJsx = name => {
 const pugAttrValToJsx = (attrName, val) => {
     switch (attrName) {
         case 'class':
-            return val.replace(/'/g, '');
+            try {
+                const exprVal = parseExpression(val);
+                return b.jsxExpressionContainer(exprVal);
+            } catch (error) {
+                return b.stringLiteral(val.replace(/'/g, ''));
+            }
         default:
-            return val;
+            return b.stringLiteral(val);
     }
 };
 
@@ -39,11 +44,15 @@ function getEsNode(pugNode, esChildren) {
     let esNode;
 
     if (pugNode.type === 'Text') {
-        esNode = b.jsxText(pugNode.val); // string
+        // intentionally streamlining this case for now since formatting is done by the `generator` anyway
+        if (pugNode.val.replace(/\s|\n/g, '').length === 0) esNode = b.emptyStatement();
+        else esNode = b.jsxText(pugNode.val); // string
     } else if (pugNode.type === 'Code') { // prop access
         esNode = parseExpression(pugNode.val);
     } else if (pugNode.type === 'Block') {
         esNode = esChildren;
+    } else if (pugNode.type === 'Comment') {
+        esNode = b.emptyStatement(); // FIXME: add actual comments
     } else if (pugNode.type === 'Mixin' && pugNode.call === false) { // component declaration
         esNode = b.variableDeclaration(
             'const',
@@ -64,7 +73,7 @@ function getEsNode(pugNode, esChildren) {
                     b.jsxIdentifier(pugNode.name),
                     pugNode.attrs.map(attr => b.jsxAttribute(
                         b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
-                        b.stringLiteral(pugAttrValToJsx(attr.name, attr.val))
+                        pugAttrValToJsx(attr.name, attr.val)
                     ))
                 ),
                 b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
@@ -84,7 +93,7 @@ function getEsNode(pugNode, esChildren) {
         );
     }
 
-    if (!esNode) throw new Error(`Unsupported pug node type: ${pugNode.type}`);
+    if (typeof esNode === 'undefined') throw new Error(`Unsupported pug node type: ${pugNode.type}`);
 
     return esNode;
 }
@@ -120,8 +129,8 @@ module.exports.convert = function convert(paths) {
             }
         });
 
-        const esAst = b.program(walk(pugAst));
-
+        const walkRes = walk(pugAst);
+        const esAst = b.program(walkRes);
         const { code } = generate(esAst);
 
         // writeFileSync(path.replace(/\.pug$/, '.jsx'), code);
