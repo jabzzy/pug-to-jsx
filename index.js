@@ -73,10 +73,13 @@ function getEsNode(pugNode, esChildren) {
             b.jsxElement(
                 b.jsxOpeningElement(
                     b.jsxIdentifier(pugNode.name),
-                    pugNode.attrs.map(attr => b.jsxAttribute(
-                        b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
-                        pugAttrValToJsx(attr.val)
-                    ))
+                    [
+                        ...pugNode.attrs.map(attr => b.jsxAttribute(
+                            b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
+                            pugAttrValToJsx(attr.val)
+                        )),
+                        ...pugNode.attributeBlocks.map(attrBlock => b.jsxSpreadAttribute(parseExpression(attrBlock.val)))
+                    ]
                 ),
                 b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
                 esChildren,

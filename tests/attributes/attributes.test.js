@@ -15,6 +15,7 @@ describe('attributes / https://pugjs.org/language/attributes.html', () => {
         ['./style-attributes'],
         ['./class-attributes'],
         ['./id-literal'],
+        ['./amp-attributes'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 
