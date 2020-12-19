@@ -7,6 +7,7 @@ describe('attributes / https://pugjs.org/language/attributes.html', () => {
         ['./attributes'],
         ['./attributes-expr'],
         ['./template-strings-attributes'],
+        // ['./quoted-attributes'], // FIXME: https://pugjs.org/language/attributes.html#quoted-attributes never used this stuff
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 
