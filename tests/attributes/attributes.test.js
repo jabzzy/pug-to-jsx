@@ -12,6 +12,7 @@ describe('attributes / https://pugjs.org/language/attributes.html', () => {
         ['./attribute-interpolation-2'],
         ['./boolean-attributes-1'],
         ['./boolean-attributes-2'],
+        ['./style-attributes'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 
