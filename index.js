@@ -27,18 +27,15 @@ const pugAttrNameToJsx = name => {
     }
 };
 
-const pugAttrValToJsx = (attrName, val) => {
-    switch (attrName) {
-        case 'class':
-            try {
-                const exprVal = parseExpression(val);
-                return b.jsxExpressionContainer(exprVal);
-            } catch (error) {
-                return b.stringLiteral(val.replace(/'/g, ''));
-            }
-        default:
-            return b.stringLiteral(val);
+const pugAttrValToJsx = (val) => {
+    if (typeof val === 'boolean') {
+        return null;
     }
+
+    // FIXME: try to distinguish simple strings from actual expressions
+    // this should result in cleaner string attrs in jsx
+    // return b.stringLiteral(val.replace(/'/g, ''));
+    return b.jsxExpressionContainer(parseExpression(val));
 };
 
 function getEsNode(pugNode, esChildren) {
@@ -76,7 +73,7 @@ function getEsNode(pugNode, esChildren) {
                     b.jsxIdentifier(pugNode.name),
                     pugNode.attrs.map(attr => b.jsxAttribute(
                         b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
-                        pugAttrValToJsx(attr.name, attr.val)
+                        pugAttrValToJsx(attr.val)
                     ))
                 ),
                 b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
