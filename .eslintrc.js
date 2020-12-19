@@ -27,5 +27,15 @@ module.exports = {
             'error',
             'always'
         ],
-    }
+    },
+    'overrides': [
+        {
+            'files': ['*.jsx'],
+            'parserOptions': {
+                'ecmaFeatures': {
+                    'jsx': true,
+                }
+            }
+        }
+    ]
 };
