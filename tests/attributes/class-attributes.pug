@@ -1,0 +1,7 @@
+.content
+- var classes = ['foo', 'bar', 'baz']
+a(class=classes)
+a.bang(class=classes class=['bing'])
+- var currentUrl = '/about'
+a(class={active: currentUrl === '/'} href='/') Home
+a(class={active: currentUrl === '/about'} href='/about') About

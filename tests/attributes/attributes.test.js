@@ -13,6 +13,8 @@ describe('attributes / https://pugjs.org/language/attributes.html', () => {
         ['./boolean-attributes-1'],
         ['./boolean-attributes-2'],
         ['./style-attributes'],
+        ['./class-attributes'],
+        ['./id-literal'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 
