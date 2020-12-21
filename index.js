@@ -47,7 +47,7 @@ function getEsNode(pugNode, esChildren) {
         // intentionally streamlining this case for now since formatting is done by the `generator` anyway
         if (pugNode.val.replace(/\s|\n/g, '').length === 0) esNode = b.emptyStatement();
         else esNode = b.jsxText(pugNode.val); // string
-    } else if (pugNode.type === 'Code') { // prop access
+    } else if (pugNode.type === 'Code') {
         esNode = parseEs(pugNode.val).program.body;
     } else if (pugNode.type === 'Block') {
         esNode = esChildren;
@@ -55,6 +55,19 @@ function getEsNode(pugNode, esChildren) {
         esNode = b.emptyStatement(); // FIXME: add actual comments
     } else if (pugNode.type === 'Doctype') {
         esNode = b.emptyStatement();
+    } else if (pugNode.type === 'Case') {
+        esNode = b.switchStatement(
+            parseExpression(pugNode.expr),
+            esChildren,
+        );
+    } else if (pugNode.type === 'When') {
+        esNode = b.switchCase(
+            pugNode.expr === 'default' ? null : parseExpression(pugNode.expr),
+            esChildren ?
+                // break statement is implicit by default, FIXME: handle explicit break statements
+                [...[].concat(esChildren), b.breakStatement()] :
+                [],
+        );
     } else if (pugNode.type === 'Mixin' && pugNode.call === false) { // component declaration
         esNode = b.variableDeclaration(
             'const',
@@ -136,6 +149,7 @@ module.exports.convert = function convert(paths) {
 
         debug('Pug AST: %O', pugAst);
         const walkRes = walk(pugAst);
+        debug('Pug AST walk: %O', walkRes);
         const esAst = b.program([].concat(...walkRes));
         debug('ES AST: %O', esAst);
         const { code } = generate(esAst);
