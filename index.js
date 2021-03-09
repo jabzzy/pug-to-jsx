@@ -68,6 +68,34 @@ function getEsNode(pugNode, esChildren) {
                 [...[].concat(esChildren), b.breakStatement()] :
                 [],
         );
+    } else if (pugNode.type === 'Each') {
+        let children = Array.isArray(esChildren) ? esChildren.flat() : [esChildren];
+
+        esNode = b.expressionStatement(
+            b.callExpression(
+                b.memberExpression(b.identifier(pugNode.obj), b.identifier('map')),
+                [b.arrowFunctionExpression(
+                    [
+                        b.identifier(pugNode.val),
+                        pugNode.key ? b.identifier(pugNode.key) : undefined,
+                    ].filter(Boolean),
+                    b.blockStatement([
+                        b.returnStatement(
+                            b.jsxFragment(
+                                b.jsxOpeningFragment(),
+                                b.jsxClosingFragment(),
+                                children.map(child => {
+                                    if (child.expression) {
+                                        return child.expression;
+                                    }
+                                    return child;
+                                }),
+                            ),
+                        ),
+                    ]),
+                )]
+            )
+        );
     } else if (pugNode.type === 'Mixin' && pugNode.call === false) { // component declaration
         esNode = b.variableDeclaration(
             'const',
@@ -82,6 +110,8 @@ function getEsNode(pugNode, esChildren) {
     } else if (pugNode.type === 'Mixin' && pugNode.call === true) { // component call
 
     } else if (pugNode.type === 'Tag') {
+        let children = Array.isArray(esChildren) ? esChildren.flat() : [esChildren];
+
         esNode = b.expressionStatement(
             b.jsxElement(
                 b.jsxOpeningElement(
@@ -95,7 +125,12 @@ function getEsNode(pugNode, esChildren) {
                     ]
                 ),
                 b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
-                esChildren,
+                children.map(child => {
+                    if (child.expression) {
+                        return b.jsxExpressionContainer(child.expression);
+                    }
+                    return child;
+                }),
                 pugNode.selfClosing,
             )
         );
