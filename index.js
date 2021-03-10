@@ -17,6 +17,7 @@ const b = require('@babel/types');
 const lex = require('pug-lexer');
 const load = require('pug-load');
 const parsePug = require('pug-parser');
+const literalToAst = require('babel-literal-to-ast');
 
 const pugAttrNameToJsx = name => {
     switch (name) {
@@ -27,9 +28,23 @@ const pugAttrNameToJsx = name => {
     }
 };
 
-const pugAttrValToJsx = (val) => {
+const pugAttrValToJsx = (name, val) => {
     if (typeof val === 'boolean') {
         return null;
+    }
+
+    // styles as a css string
+    if (name === 'style' && !val.includes('{')) {
+        console.log('val :>> ', val);
+        return b.jsxExpressionContainer(
+            literalToAst(
+                val.replace(/["\s+]/g, '').split(';').reduce((styles, styleRaw) => {
+                    const style = styleRaw.split(':');
+                    styles[style[0]] = style[1];
+                    return styles;
+                }, {})
+            )
+        );
     }
 
     // FIXME: try to distinguish simple strings from actual expressions
@@ -119,7 +134,7 @@ function getEsNode(pugNode, esChildren) {
                     [
                         ...pugNode.attrs.map(attr => b.jsxAttribute(
                             b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
-                            pugAttrValToJsx(attr.val)
+                            pugAttrValToJsx(attr.name, attr.val)
                         )),
                         ...pugNode.attributeBlocks.map(attrBlock => b.jsxSpreadAttribute(parseExpression(attrBlock.val)))
                     ]
