@@ -53,10 +53,26 @@ const pugAttrValToJsx = (name, val) => {
     return b.jsxExpressionContainer(parseExpression(val));
 };
 
+const processArrayForConditional = nodesArr => {
+    if (nodesArr.length === 0) return b.nullLiteral();
+
+    // assuming that we'll get only markup here
+    return b.jsxFragment(
+        b.jsxOpeningFragment(),
+        b.jsxClosingFragment(),
+        nodesArr.map(child => {
+            if (child.expression) {
+                return b.jsxExpressionContainer(child.expression);
+            }
+            return child;
+        }),
+    );
+};
+
 function getEsNode(pugNode, esChildren) {
     let esNode;
 
-    debug(`${pugNode.type}: %O`, pugNode);
+    debug(`\ngot node type ${pugNode.type}: %O\n`, pugNode);
 
     if (pugNode.type === 'Text') {
         // intentionally streamlining this case for now since formatting is done by the `generator` anyway
@@ -82,6 +98,20 @@ function getEsNode(pugNode, esChildren) {
                 // break statement is implicit by default, FIXME: handle explicit break statements
                 [...[].concat(esChildren), b.breakStatement()] :
                 [],
+        );
+    } else if (pugNode.type === 'Conditional') {
+        let consequent = walk(pugNode.consequent);
+        if (Array.isArray(consequent)) consequent = processArrayForConditional(consequent);
+        debug('consequent %O', consequent);
+
+        let alternate = pugNode.alternate && walk(pugNode.alternate) || b.nullLiteral();
+        if (Array.isArray(alternate)) alternate = processArrayForConditional(alternate);
+        debug('alternate %O', alternate);
+
+        esNode = b.conditionalExpression(
+            parseExpression(pugNode.test),
+            consequent,
+            alternate,
         );
     } else if (pugNode.type === 'Each') {
         let children = Array.isArray(esChildren) ? esChildren.flat() : [esChildren];
@@ -141,9 +171,19 @@ function getEsNode(pugNode, esChildren) {
                 ),
                 b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
                 children.map(child => {
-                    if (child.expression) {
+                    if (child.expression) { // passthrough
                         return b.jsxExpressionContainer(child.expression);
+                    } else if (b.isEmptyStatement(child)) {
+                        return b.jsxText(' '); // FIXME: hack to override the Text node handler behavior -- ES `program`'s `body` doesn't like jsxText as its children, so I return EmptyExpression there, but have to make this hack here
+                    } else if (!(
+                        b.isJSXText(child) ||
+                        b.isJSXSpreadChild(child) ||
+                        b.isJSXElement(child) ||
+                        b.isJSXFragment(child)
+                    )) {
+                        return b.jsxExpressionContainer(child);
                     }
+
                     return child;
                 }),
                 pugNode.selfClosing,

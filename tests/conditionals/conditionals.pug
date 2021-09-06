@@ -1,0 +1,11 @@
+- var user = {description: 'foo bar baz'}
+- var authorised = false
+#user
+  if user.description
+    p.description Use has description
+  else if authorised
+    p.authorized.
+      User has no description,
+      why not add one...
+  else
+    p.description User has no description
