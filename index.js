@@ -11,6 +11,7 @@ https://astexplorer.net/#/gist/6beeac58462e0cf754eaf0599965c6da/435c77abb125380b
 
 // const writeFileSync = require('fs').writeFileSync;
 const debug = require('debug')('pug-to-jsx');
+const chalk = require('chalk');
 const generate = require('@babel/generator').default;
 const { parse: parseEs, parseExpression } = require('@babel/parser');
 const b = require('@babel/types');
@@ -171,7 +172,9 @@ function getEsNode(pugNode, esChildren) {
                 ),
                 b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
                 children.map(child => {
-                    if (child.expression) { // passthrough
+                    if (!child) {
+                        return b.jsxText(''); // FIXME: same as below
+                    } else if (child.expression) { // passthrough
                         return b.jsxExpressionContainer(child.expression);
                     } else if (b.isEmptyStatement(child)) {
                         return b.jsxText(' '); // FIXME: hack to override the Text node handler behavior -- ES `program`'s `body` doesn't like jsxText as its children, so I return EmptyExpression there, but have to make this hack here
@@ -185,13 +188,18 @@ function getEsNode(pugNode, esChildren) {
                     }
 
                     return child;
-                }),
+                }) || [],
                 pugNode.selfClosing,
             )
         );
     } else if (pugNode.type === 'InterpolatedTag') {
         esNode = b.jsxExpressionContainer(parseExpression(pugNode.expr));
     } else if (pugNode.type === 'Include') {
+        if (pugNode.column !== 1) {
+            console.warn(chalk.yellow(`Skipping ${pugNode.file.path}.\nPlease convert to a mixin, move its import to the top of the file and use as a mixin instead of include, e.g. +myMixin(arg1, arg2, ...)`));
+            return;
+        }
+
         const name = pugNode.file.path.split('/').pop().replace(/.pug$/, '').replace('-', ''); // TODO: camel case names
         const specifier = b.identifier(name);
 

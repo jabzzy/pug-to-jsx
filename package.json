@@ -13,6 +13,7 @@
     "@babel/parser": "7.15.5",
     "ast-types": "0.14.2",
     "babel-literal-to-ast": "2.1.0",
+    "chalk": "4.1.2",
     "debug": "4.3.2",
     "pug-lexer": "5.0.1",
     "pug-load": "3.0.0",
