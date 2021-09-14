@@ -240,7 +240,12 @@ module.exports.convert = function convert(paths) {
         debug('Pug AST: %O', pugAst);
         const walkRes = walk(pugAst);
         debug('Pug AST walk: %O', walkRes);
-        const esAst = b.program([].concat(...walkRes));
+        const esAst = b.program([].concat(...walkRes).map(res => {
+            // probably a hack for cases when we get a "bare" expression that is not a statement as required by b.program()'s body param,
+            // see conditionals/unless test:
+            if (!b.isStatement(res)) return b.expressionStatement(res);
+            return res;
+        }));
         debug('ES AST: %O', esAst);
         const { code } = generate(esAst);
         debug('resulting code: %o', code);

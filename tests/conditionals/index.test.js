@@ -5,7 +5,7 @@ const { convert } = require('../../index');
 describe('conditionals / https://pugjs.org/language/conditionals.html', () => {
     test.each([
         ['conditionals'],
-        // ['unless'],
+        ['unless'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 
