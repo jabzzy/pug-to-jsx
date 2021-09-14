@@ -13,4 +13,11 @@ describe('misc / doctype,TBD', () => {
 
         expect(actual).toBe(expected.replace(/\n$/, ''));
     });
+
+    test('filters', () => {
+        const path = resolve(__dirname, 'filters');
+        expect(() => {
+            convert([`${path}.pug`]);
+        }).toThrow('Unsupported pug node type: Filter');
+    });
 });
