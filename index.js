@@ -200,13 +200,17 @@ function getEsNode(pugNode, esChildren) {
             return;
         }
 
-        const name = pugNode.file.path.split('/').pop().replace(/.pug$/, '').replace('-', ''); // TODO: camel case names
+        const noExtPath = pugNode.file.path.replace(/.pug$/, '');
+        const name = noExtPath.split('/').pop().replace('-', ''); // TODO: camel case names
         const specifier = b.identifier(name);
 
         esNode = b.importDeclaration(
             [b.importSpecifier(specifier, specifier)],
-            b.stringLiteral(pugNode.file.path.replace(/\.pug$/, '')),
+            b.stringLiteral(noExtPath),
         );
+    } else if (pugNode.type === 'RawInclude') {
+        console.warn(chalk.yellow(`Skipping ${pugNode.file.path}. Please handle these files manually.`));
+        return;
     }
 
     if (typeof esNode === 'undefined') throw new Error(`Unsupported pug node type: ${pugNode.type}`);
@@ -249,9 +253,12 @@ module.exports.convert = function convert(paths) {
         const walkRes = walk(pugAst);
         debug('Pug AST walk: %O', walkRes);
         const esAst = b.program([].concat(...walkRes).map(res => {
-            // probably a hack for cases when we get a "bare" expression that is not a statement as required by b.program()'s body param,
-            // see conditionals/unless test:
+            // probably a hack for cases when we get a "bare" or an empty expression
+            // that is not a statement as required by b.program()'s body param,
+            // see conditionals/unless test
+            if (!res) return b.emptyStatement();
             if (!b.isStatement(res)) return b.expressionStatement(res);
+
             return res;
         }));
         debug('ES AST: %O', esAst);

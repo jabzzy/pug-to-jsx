@@ -1,1 +1,1 @@
-import { head } from "includes/head";
+import { head } from "fixtures/head";

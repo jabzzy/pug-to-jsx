@@ -6,6 +6,7 @@ describe('includes / https://pugjs.org/language/includes.html', () => {
     test.each([
         ['top-level'],
         ['not-top-level'],
+        ['not-pug'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 
