@@ -20,6 +20,8 @@ const load = require('pug-load');
 const parsePug = require('pug-parser');
 const literalToAst = require('babel-literal-to-ast');
 
+const walkMeta = {};
+
 const pugAttrNameToJsx = name => {
     switch (name) {
         case 'class':
@@ -70,7 +72,14 @@ const processArrayForConditional = nodesArr => {
     );
 };
 
-function getEsNode(pugNode, esChildren) {
+const fileNameFromPugFileAttr = (file) => {
+    const noExtPath = file.path.replace(/.pug$/, '');
+    const name = noExtPath.split('/').pop().replace('-', ''); // TODO: camel case names
+
+    return { name, noExtPath };
+};
+
+function getEsNode(pugNode, esChildren, path) {
     let esNode;
 
     debug(`\ngot node type ${pugNode.type}: %O\n`, pugNode);
@@ -195,13 +204,12 @@ function getEsNode(pugNode, esChildren) {
     } else if (pugNode.type === 'InterpolatedTag') {
         esNode = b.jsxExpressionContainer(parseExpression(pugNode.expr));
     } else if (pugNode.type === 'Include') {
-        if (pugNode.column !== 1) {
+        if (pugNode.column !== 1) { // FIXME: check if comments affect this
             console.warn(chalk.yellow(`Skipping ${pugNode.file.path}.\nPlease convert to a mixin, move its import to the top of the file and use as a mixin instead of include, e.g. +myMixin(arg1, arg2, ...)`));
             return;
         }
 
-        const noExtPath = pugNode.file.path.replace(/.pug$/, '');
-        const name = noExtPath.split('/').pop().replace('-', ''); // TODO: camel case names
+        const { name, noExtPath } = fileNameFromPugFileAttr(pugNode.file);
         const specifier = b.identifier(name);
 
         esNode = b.importDeclaration(
@@ -211,6 +219,18 @@ function getEsNode(pugNode, esChildren) {
     } else if (pugNode.type === 'RawInclude') {
         console.warn(chalk.yellow(`Skipping ${pugNode.file.path}. Please handle these files manually.`));
         return;
+    } else if (pugNode.type === 'Extends') {
+        const { name, noExtPath } = fileNameFromPugFileAttr(pugNode.file);
+        const specifier = b.identifier(name);
+
+        esNode = b.importDeclaration(
+            [b.importSpecifier(specifier, specifier)],
+            b.stringLiteral(noExtPath),
+        );
+    } else if (pugNode.type === 'NamedBlock') {
+        if (walkMeta[path]?.baseModuleName) {
+            // ???
+        }
     }
 
     if (typeof esNode === 'undefined') throw new Error(`Unsupported pug node type: ${pugNode.type}`);
@@ -218,19 +238,29 @@ function getEsNode(pugNode, esChildren) {
     return esNode;
 }
 
-function walk(pugNode) {
+function walk(pugNode, path) {
     if (Array.isArray(pugNode)) {
-        return pugNode.map(n => walk(n));
+        return pugNode.map(n => walk(n, path));
     }
 
     const pugChildren = pugNode.nodes || pugNode.block;
 
     let esChildren;
     if (pugChildren) {
-        esChildren = walk(pugChildren);
+        esChildren = walk(pugChildren, path);
     }
 
-    return getEsNode(pugNode, esChildren);
+    // FIXME: can `extends` be not in the beginning?
+    // if extends s present everything else is considered jsx's component's children
+    // - component name = curr filename
+    // - each block is a slot prop in a base component from extends
+    if (pugNode.type === 'Extends') {
+        walkMeta[path] || (walkMeta[path] = {});
+        walkMeta[path].baseModuleName = fileNameFromPugFileAttr(pugNode.file).name;
+        walkMeta[path].moduleName = fileNameFromPugFileAttr({ path }).name;
+    }
+
+    return getEsNode(pugNode, esChildren, path);
 }
 
 /**
@@ -250,7 +280,7 @@ module.exports.convert = function convert(paths) {
         });
 
         debug('Pug AST: %O', pugAst);
-        const walkRes = walk(pugAst);
+        const walkRes = walk(pugAst, path);
         debug('Pug AST walk: %O', walkRes);
         const esAst = b.program([].concat(...walkRes).map(res => {
             // probably a hack for cases when we get a "bare" or an empty expression
