@@ -6,16 +6,16 @@ describe('attributes / https://pugjs.org/language/attributes.html', () => {
     test.each([
         ['./attributes'],
         ['./attributes-expr'],
-        ['./template-strings-attributes'],
-        // ['./quoted-attributes'], // FIXME: https://pugjs.org/language/attributes.html#quoted-attributes never used this stuff
-        ['./attribute-interpolation-1'],
-        ['./attribute-interpolation-2'],
-        ['./boolean-attributes-1'],
-        ['./boolean-attributes-2'],
-        ['./style-attributes'],
-        ['./class-attributes'],
-        ['./id-literal'],
-        ['./amp-attributes'],
+        // ['./template-strings-attributes'],
+        // // ['./quoted-attributes'], // FIXME: https://pugjs.org/language/attributes.html#quoted-attributes never used this stuff
+        // ['./attribute-interpolation-1'],
+        // ['./attribute-interpolation-2'],
+        // ['./boolean-attributes-1'],
+        // ['./boolean-attributes-2'],
+        // ['./style-attributes'],
+        // ['./class-attributes'],
+        // ['./id-literal'],
+        // ['./amp-attributes'],
     ])('%s', async (path) => {
         path = resolve(__dirname, path);
 

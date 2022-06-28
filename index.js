@@ -19,6 +19,7 @@ const lex = require('pug-lexer');
 const load = require('pug-load');
 const parsePug = require('pug-parser');
 const literalToAst = require('babel-literal-to-ast');
+const utils = require('./utils');
 
 const walkMeta = {};
 
@@ -74,7 +75,7 @@ const processArrayForConditional = nodesArr => {
 
 const fileNameFromPugFileAttr = (file) => {
     const noExtPath = file.path.replace(/.pug$/, '');
-    const name = noExtPath.split('/').pop().replace('-', ''); // TODO: camel case names
+    const name = utils.camelCase(noExtPath.split('/').pop());
 
     return { name, noExtPath };
 };
@@ -85,17 +86,15 @@ function getEsNode(pugNode, esChildren, path) {
     debug(`\ngot node type ${pugNode.type}: %O\n`, pugNode);
 
     if (pugNode.type === 'Text') {
-        // intentionally streamlining this case for now since formatting is done by the `generator` anyway
-        if (pugNode.val.replace(/\s|\n/g, '').length === 0) esNode = b.emptyStatement();
-        else esNode = b.jsxText(pugNode.val); // string
+        esNode = b.jsxText(pugNode.val);
     } else if (pugNode.type === 'Code') {
         esNode = parseEs(pugNode.val).program.body;
     } else if (pugNode.type === 'Block') {
         esNode = esChildren;
     } else if (pugNode.type === 'Comment') {
-        esNode = b.emptyStatement(); // FIXME: add actual comments
+        esNode = b.jsxText(''); // FIXME: add actual comments
     } else if (pugNode.type === 'Doctype') {
-        esNode = b.emptyStatement();
+        esNode = b.jsxText('');
     } else if (pugNode.type === 'Case') {
         esNode = b.switchStatement(
             parseExpression(pugNode.expr),
@@ -167,39 +166,37 @@ function getEsNode(pugNode, esChildren, path) {
     } else if (pugNode.type === 'Tag') {
         let children = Array.isArray(esChildren) ? esChildren.flat() : [esChildren];
 
-        esNode = b.expressionStatement(
-            b.jsxElement(
-                b.jsxOpeningElement(
-                    b.jsxIdentifier(pugNode.name),
-                    [
-                        ...pugNode.attrs.map(attr => b.jsxAttribute(
-                            b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
-                            pugAttrValToJsx(attr.name, attr.val)
-                        )),
-                        ...pugNode.attributeBlocks.map(attrBlock => b.jsxSpreadAttribute(parseExpression(attrBlock.val)))
-                    ]
-                ),
-                b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
-                children.map(child => {
-                    if (!child) {
-                        return b.jsxText(''); // FIXME: same as below
-                    } else if (child.expression) { // passthrough
-                        return b.jsxExpressionContainer(child.expression);
-                    } else if (b.isEmptyStatement(child)) {
-                        return b.jsxText(' '); // FIXME: hack to override the Text node handler behavior -- ES `program`'s `body` doesn't like jsxText as its children, so I return EmptyExpression there, but have to make this hack here
-                    } else if (!(
-                        b.isJSXText(child) ||
+        esNode = b.jsxElement(
+            b.jsxOpeningElement(
+                b.jsxIdentifier(pugNode.name),
+                [
+                    ...pugNode.attrs.map(attr => b.jsxAttribute(
+                        b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
+                        pugAttrValToJsx(attr.name, attr.val)
+                    )),
+                    ...pugNode.attributeBlocks.map(attrBlock => b.jsxSpreadAttribute(parseExpression(attrBlock.val)))
+                ]
+            ),
+            b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
+            children.map(child => {
+                if (!child) {
+                    return b.jsxText(''); // FIXME: same as below
+                } else if (child.expression) { // passthrough
+                    return b.jsxExpressionContainer(child.expression);
+                } else if (b.isEmptyStatement(child)) {
+                    return b.jsxText(' '); // FIXME: hack to override the Text node handler behavior -- ES `program`'s `body` doesn't like jsxText as its children, so I return EmptyExpression there, but have to make this hack here
+                } else if (!(
+                    b.isJSXText(child) ||
                         b.isJSXSpreadChild(child) ||
                         b.isJSXElement(child) ||
                         b.isJSXFragment(child)
-                    )) {
-                        return b.jsxExpressionContainer(child);
-                    }
+                )) {
+                    return b.jsxExpressionContainer(child);
+                }
 
-                    return child;
-                }) || [],
-                pugNode.selfClosing,
-            )
+                return child;
+            }) || [],
+            pugNode.selfClosing,
         );
     } else if (pugNode.type === 'InterpolatedTag') {
         esNode = b.jsxExpressionContainer(parseExpression(pugNode.expr));
@@ -227,10 +224,6 @@ function getEsNode(pugNode, esChildren, path) {
             [b.importSpecifier(specifier, specifier)],
             b.stringLiteral(noExtPath),
         );
-    } else if (pugNode.type === 'NamedBlock') {
-        if (walkMeta[path]?.baseModuleName) {
-            // ???
-        }
     }
 
     if (typeof esNode === 'undefined') throw new Error(`Unsupported pug node type: ${pugNode.type}`);
@@ -240,7 +233,7 @@ function getEsNode(pugNode, esChildren, path) {
 
 function walk(pugNode, path) {
     if (Array.isArray(pugNode)) {
-        return pugNode.map(n => walk(n, path));
+        return pugNode.map((n) => walk(n, path));
     }
 
     const pugChildren = pugNode.nodes || pugNode.block;
@@ -248,16 +241,6 @@ function walk(pugNode, path) {
     let esChildren;
     if (pugChildren) {
         esChildren = walk(pugChildren, path);
-    }
-
-    // FIXME: can `extends` be not in the beginning?
-    // if extends s present everything else is considered jsx's component's children
-    // - component name = curr filename
-    // - each block is a slot prop in a base component from extends
-    if (pugNode.type === 'Extends') {
-        walkMeta[path] || (walkMeta[path] = {});
-        walkMeta[path].baseModuleName = fileNameFromPugFileAttr(pugNode.file).name;
-        walkMeta[path].moduleName = fileNameFromPugFileAttr({ path }).name;
     }
 
     return getEsNode(pugNode, esChildren, path);
@@ -279,18 +262,78 @@ module.exports.convert = function convert(paths) {
             }
         });
 
+        const namedBlock = pugAst.nodes.find((node) => node.type === 'NamedBlock');
+        const extendsBlock = pugAst.nodes.find((node) => node.type === 'Extends');
+        const identifierName = utils.camelCase(fileNameFromPugFileAttr({ path }).name);
+
+        if (namedBlock) {
+            walkMeta[path] || (walkMeta[path] = {});
+            walkMeta[path].moduleName = identifierName;
+
+            // if `extends` keyword is present then each `block` is an as-prop from a base component
+            if (extendsBlock) {
+                walkMeta[path].baseModuleName = fileNameFromPugFileAttr(extendsBlock.file).name;
+            }
+        }
+
         debug('Pug AST: %O', pugAst);
         const walkRes = walk(pugAst, path);
-        debug('Pug AST walk: %O', walkRes);
-        const esAst = b.program([].concat(...walkRes).map(res => {
+        debug('Pug AST walk result: %O', walkRes);
+        const preparedWalkRes = walkRes.map(statement => {
             // probably a hack for cases when we get a "bare" or an empty expression
             // that is not a statement as required by b.program()'s body param,
             // see conditionals/unless test
-            if (!res) return b.emptyStatement();
-            if (!b.isStatement(res)) return b.expressionStatement(res);
+            if (!statement || b.isEmptyStatement(statement)) return b.jsxText('');
+            // if (!b.isStatement(statement)) return b.expressionStatement(statement);
 
-            return res;
-        }));
+            return statement;
+        });
+
+        // valid fragment children: ["JSXText","JSXExpressionContainer","JSXSpreadChild","JSXElement","JSXFragment"]
+        const isValidJsxFragmentChild = (s) => (
+            b.isJSXText(s) ||
+            b.isJSXExpressionContainer(s) ||
+            b.isJSXSpreadChild(s) ||
+            b.isJSXElement(s) ||
+            b.isJSXFragment(s)
+        );
+        const returnStatements = preparedWalkRes.filter(isValidJsxFragmentChild);
+        console.log('returnStatements :>> ', returnStatements);
+        const nonReturnStatements = preparedWalkRes.filter((s) => !isValidJsxFragmentChild(s));
+        console.log('nonReturnStatements :>> ', nonReturnStatements);
+
+        let returnBody;
+        if (returnStatements.length === 0) {
+            returnBody = b.nullLiteral();
+        } else if (returnStatements.length === 1) {
+            returnBody = returnStatements[0];
+        } else {
+            returnBody = b.jsxFragment(
+                b.jsxOpeningFragment(),
+                b.jsxClosingFragment(),
+                [
+                    b.jsxText('\n'),
+                    ...returnStatements,
+                    b.jsxText('\n'),
+                ]
+            );
+        }
+
+        const declaration = b.exportNamedDeclaration(
+            b.variableDeclaration('const', [
+                b.variableDeclarator(
+                    b.identifier(identifierName),
+                    b.arrowFunctionExpression(
+                        [/* TODO: parse `block` statements into params */],
+                        b.blockStatement([
+                            ...(nonReturnStatements.length > 0 ? nonReturnStatements : [b.emptyStatement()]),
+                            b.returnStatement(returnBody),
+                        ]),
+                    ),
+                ),
+            ]),
+        );
+        const esAst = b.program([declaration]);
         debug('ES AST: %O', esAst);
         const { code } = generate(esAst);
         debug('resulting code: %o', code);
