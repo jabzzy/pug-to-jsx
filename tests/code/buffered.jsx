@@ -1,5 +1,8 @@
-<p>{'This code ' + 'is' + ' <escaped>!'}</p>;
-<p style={{
-  "background": "blue",
-  "color": "red"
-}}>{'A message with a ' + 'blue' + ' background'}</p>;
+export const Buffered = () => {
+  return <>
+    <p>{'This code ' + 'is' + ' <escaped>!'}</p><p style={{
+      "background": "blue",
+      "color": "red"
+    }}>{'A message with a ' + 'blue' + ' background'}</p>
+  </>;
+};

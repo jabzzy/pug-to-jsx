@@ -1,4 +1,4 @@
-var list = ["Uno", "Dos", "Tres", "Cuatro", "Cinco", "Seis"];
-list.map(item => {
-  return <><li>{item}</li></>;
-});
+export const Unbuffered2 = () => {
+  var list = ["Uno", "Dos", "Tres", "Cuatro", "Cinco", "Seis"];
+  return <>{list.map(item => <><li>{item}</li></>)}</>;
+};

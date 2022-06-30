@@ -1,15 +1,15 @@
-var friends = 10;
+export const Case = () => {
+  var friends = 10;
+  return <>{(() => {
+      switch (friends) {
+        case 0:
+          return <><p>you have no friends</p></>;
 
-switch (friends) {
-  case 0:
-    <p>you have no friends</p>;
-    break;
+        case 1:
+          return <><p>you have a friend</p></>;
 
-  case 1:
-    <p>you have a friend</p>;
-    break;
-
-  default:
-    <p>you have friends</p>;
-    break;
-}
+        default:
+          return <><p>you have friends</p></>;
+      }
+    })()}</>;
+};

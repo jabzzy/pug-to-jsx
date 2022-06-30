@@ -36,6 +36,16 @@ module.exports = {
                     'jsx': true,
                 }
             }
+        },
+        {
+            'files': ['tests/**/*.jsx'],
+            'rules': {
+                'indent': [
+                    'error',
+                    2,
+                    { 'SwitchCase': 1 }
+                ]
+            }
         }
     ]
 };

@@ -1,1 +1,3 @@
-<html></html>;
+export const NotTopLevel = () => {
+  return <html></html>;
+};

@@ -1,7 +1,8 @@
-var url = 'pug-test.html';
-<a href={'/' + url}>Link</a>;
-;
-;
-;
-url = 'https://example.com/';
-<a href={url}>Another link</a>;
+export const AttributeInterpolation1 = () => {
+  var url = 'pug-test.html';
+  url = 'https://example.com/';
+  return <>
+    <a href={'/' + url}>Link</a>
+    <a href={url}>Another link</a>
+  </>;
+};

@@ -1,12 +1,13 @@
-var friends = 10;
+export const FallThrough = () => {
+  var friends = 10;
+  return <>{(() => {
+      switch (friends) {
+        case 0:
+        case 1:
+          return <><p>you have very few friends</p></>;
 
-switch (friends) {
-  case 0:
-  case 1:
-    <p>you have very few friends</p>;
-    break;
-
-  default:
-    <p>you have friends</p>;
-    break;
-}
+        default:
+          return <><p>you have friends</p></>;
+      }
+    })()}</>;
+};

@@ -39,7 +39,6 @@ const pugAttrValToJsx = (name, val) => {
 
     // styles as a css string
     if (name === 'style' && !val.includes('{')) {
-        console.log('val :>> ', val);
         return b.jsxExpressionContainer(
             literalToAst(
                 val.replace(/["\s+]/g, '').split(';').reduce((styles, styleRaw) => {
@@ -61,26 +60,38 @@ const processArrayForConditional = nodesArr => {
     if (nodesArr.length === 0) return b.nullLiteral();
 
     // assuming that we'll get only markup here
-    return b.jsxFragment(
-        b.jsxOpeningFragment(),
-        b.jsxClosingFragment(),
-        nodesArr.map(child => {
-            if (child.expression) {
-                return b.jsxExpressionContainer(child.expression);
-            }
-            return child;
-        }),
+    return wrapInFragment(nodesArr.map(child => {
+        if (child.expression) {
+            return b.jsxExpressionContainer(child.expression);
+        }
+        return child;
+    }),
     );
 };
 
 const fileNameFromPugFileAttr = (file) => {
     const noExtPath = file.path.replace(/.pug$/, '');
-    const name = utils.camelCase(noExtPath.split('/').pop());
+    const name = noExtPath.split('/').pop();
 
     return { name, noExtPath };
 };
 
-function getEsNode(pugNode, esChildren, path) {
+// valid fragment children: ["JSXText","JSXExpressionContainer","JSXSpreadChild","JSXElement","JSXFragment"]
+const isValidJsxFragmentChild = (s) => (
+    b.isJSXText(s) ||
+    b.isJSXExpressionContainer(s) ||
+    b.isJSXSpreadChild(s) ||
+    b.isJSXElement(s) ||
+    b.isJSXFragment(s)
+);
+
+const wrapInFragment = (children) => b.jsxFragment(
+    b.jsxOpeningFragment(),
+    b.jsxClosingFragment(),
+    Array.isArray(children) ? children : [children],
+);
+
+function getEsNode(pugNode, esChildren) {
     let esNode;
 
     debug(`\ngot node type ${pugNode.type}: %O\n`, pugNode);
@@ -94,19 +105,30 @@ function getEsNode(pugNode, esChildren, path) {
     } else if (pugNode.type === 'Comment') {
         esNode = b.jsxText(''); // FIXME: add actual comments
     } else if (pugNode.type === 'Doctype') {
-        esNode = b.jsxText('');
+        return;
     } else if (pugNode.type === 'Case') {
-        esNode = b.switchStatement(
-            parseExpression(pugNode.expr),
-            esChildren,
-        );
+        // TODO: this handles cases when Case is used for rendering -- how do we separate these from "regular" switch-case statements' use-cases?
+        esNode = wrapInFragment(b.jsxExpressionContainer(
+            b.callExpression(
+                b.arrowFunctionExpression(
+                    [],
+                    b.blockStatement([
+                        b.switchStatement(
+                            parseExpression(pugNode.expr),
+                            esChildren,
+                        )
+                    ]),
+                ),
+                [],
+            ),
+        ));
     } else if (pugNode.type === 'When') {
+        // break statement is implicit by default, FIXME: handle explicit break statements
         esNode = b.switchCase(
             pugNode.expr === 'default' ? null : parseExpression(pugNode.expr),
-            esChildren ?
-                // break statement is implicit by default, FIXME: handle explicit break statements
-                [...[].concat(esChildren), b.breakStatement()] :
-                [],
+            esChildren ? [b.returnStatement(
+                wrapInFragment(esChildren.filter(Boolean)),
+            )] : [],
         );
     } else if (pugNode.type === 'Conditional') {
         let consequent = walk(pugNode.consequent);
@@ -125,29 +147,25 @@ function getEsNode(pugNode, esChildren, path) {
     } else if (pugNode.type === 'Each') {
         let children = Array.isArray(esChildren) ? esChildren.flat() : [esChildren];
 
-        esNode = b.expressionStatement(
-            b.callExpression(
-                b.memberExpression(b.identifier(pugNode.obj), b.identifier('map')),
-                [b.arrowFunctionExpression(
-                    [
-                        b.identifier(pugNode.val),
-                        pugNode.key ? b.identifier(pugNode.key) : undefined,
-                    ].filter(Boolean),
-                    b.blockStatement([
-                        b.returnStatement(
-                            b.jsxFragment(
-                                b.jsxOpeningFragment(),
-                                b.jsxClosingFragment(),
-                                children.map(child => {
-                                    if (child.expression) {
-                                        return child.expression;
-                                    }
-                                    return child;
-                                }),
-                            ),
+        esNode = wrapInFragment(
+            b.jsxExpressionContainer(
+                b.callExpression(
+                    b.memberExpression(b.identifier(pugNode.obj), b.identifier('map')),
+                    [b.arrowFunctionExpression(
+                        [
+                            b.identifier(pugNode.val),
+                            pugNode.key ? b.identifier(pugNode.key) : undefined,
+                        ].filter(Boolean),
+                        wrapInFragment(
+                            children.map(child => {
+                                if (child.expression) {
+                                    return child.expression;
+                                }
+                                return child;
+                            })
                         ),
-                    ]),
-                )]
+                    )]
+                )
             )
         );
     } else if (pugNode.type === 'Mixin' && pugNode.call === false) { // component declaration
@@ -201,16 +219,16 @@ function getEsNode(pugNode, esChildren, path) {
     } else if (pugNode.type === 'InterpolatedTag') {
         esNode = b.jsxExpressionContainer(parseExpression(pugNode.expr));
     } else if (pugNode.type === 'Include') {
-        if (pugNode.column !== 1) { // FIXME: check if comments affect this
-            console.warn(chalk.yellow(`Skipping ${pugNode.file.path}.\nPlease convert to a mixin, move its import to the top of the file and use as a mixin instead of include, e.g. +myMixin(arg1, arg2, ...)`));
+        if (pugNode.column !== 1) {
+            console.warn(chalk.yellow(`Skipping ${pugNode.file.path}.\nPlease convert this include to a mixin (e.g. +myMixin(arg1, arg2, ...)) and move its import to the top of the template file`));
             return;
         }
 
         const { name, noExtPath } = fileNameFromPugFileAttr(pugNode.file);
-        const specifier = b.identifier(name);
+        const identifier = b.identifier(name);
 
         esNode = b.importDeclaration(
-            [b.importSpecifier(specifier, specifier)],
+            [b.importSpecifier(identifier, identifier)],
             b.stringLiteral(noExtPath),
         );
     } else if (pugNode.type === 'RawInclude') {
@@ -233,7 +251,10 @@ function getEsNode(pugNode, esChildren, path) {
 
 function walk(pugNode, path) {
     if (Array.isArray(pugNode)) {
-        return pugNode.map((n) => walk(n, path));
+        return pugNode
+            .map((n) => walk(n, path))
+            .flat() // flat handles Code block results being arrays, while everything else is b.something() result
+            .filter(Boolean);
     }
 
     const pugChildren = pugNode.nodes || pugNode.block;
@@ -270,7 +291,7 @@ module.exports.convert = function convert(paths) {
             walkMeta[path] || (walkMeta[path] = {});
             walkMeta[path].moduleName = identifierName;
 
-            // if `extends` keyword is present then each `block` is an as-prop from a base component
+            // if `extends` keyword is present then each `block` is an `as` prop from a base component
             if (extendsBlock) {
                 walkMeta[path].baseModuleName = fileNameFromPugFileAttr(extendsBlock.file).name;
             }
@@ -284,24 +305,27 @@ module.exports.convert = function convert(paths) {
             // that is not a statement as required by b.program()'s body param,
             // see conditionals/unless test
             if (!statement || b.isEmptyStatement(statement)) return b.jsxText('');
-            // if (!b.isStatement(statement)) return b.expressionStatement(statement);
+
+            // edge case for conditionals w\o `alternate` prop
+            if (b.isConditional(statement)) return wrapInFragment(b.jsxExpressionContainer(statement));
 
             return statement;
         });
 
-        // valid fragment children: ["JSXText","JSXExpressionContainer","JSXSpreadChild","JSXElement","JSXFragment"]
-        const isValidJsxFragmentChild = (s) => (
-            b.isJSXText(s) ||
-            b.isJSXExpressionContainer(s) ||
-            b.isJSXSpreadChild(s) ||
-            b.isJSXElement(s) ||
-            b.isJSXFragment(s)
-        );
-        const returnStatements = preparedWalkRes.filter(isValidJsxFragmentChild);
-        console.log('returnStatements :>> ', returnStatements);
-        const nonReturnStatements = preparedWalkRes.filter((s) => !isValidJsxFragmentChild(s));
-        console.log('nonReturnStatements :>> ', nonReturnStatements);
+        const topLevelStatements = [];
+        const returnStatements = [];
+        const nonReturnStatements = [];
+        for (const statement of preparedWalkRes) {
+            if (b.isImportDeclaration(statement)) {
+                topLevelStatements.push(statement);
+            } else if (isValidJsxFragmentChild(statement)) {
+                returnStatements.push(statement);
+            } else {
+                nonReturnStatements.push(statement);
+            }
+        }
 
+        // return formatting
         let returnBody;
         if (returnStatements.length === 0) {
             returnBody = b.nullLiteral();
@@ -319,21 +343,25 @@ module.exports.convert = function convert(paths) {
             );
         }
 
+        const componentBody = [
+            b.returnStatement(returnBody),
+        ];
+        if (nonReturnStatements.length > 0) {
+            componentBody.unshift(...nonReturnStatements);
+        }
+
         const declaration = b.exportNamedDeclaration(
             b.variableDeclaration('const', [
                 b.variableDeclarator(
                     b.identifier(identifierName),
                     b.arrowFunctionExpression(
                         [/* TODO: parse `block` statements into params */],
-                        b.blockStatement([
-                            ...(nonReturnStatements.length > 0 ? nonReturnStatements : [b.emptyStatement()]),
-                            b.returnStatement(returnBody),
-                        ]),
+                        b.blockStatement(componentBody),
                     ),
                 ),
             ]),
         );
-        const esAst = b.program([declaration]);
+        const esAst = b.program([...topLevelStatements, declaration]);
         debug('ES AST: %O', esAst);
         const { code } = generate(esAst);
         debug('resulting code: %o', code);
