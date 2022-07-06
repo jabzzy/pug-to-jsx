@@ -91,7 +91,7 @@ const wrapInFragment = (children) => b.jsxFragment(
     Array.isArray(children) ? children : [children],
 );
 
-function getEsNode(pugNode, esChildren) {
+function getEsNode(pugNode, esChildren, path) {
     let esNode;
 
     debug(`\ngot node type ${pugNode.type}: %O\n`, pugNode);
@@ -242,6 +242,28 @@ function getEsNode(pugNode, esChildren) {
             [b.importSpecifier(specifier, specifier)],
             b.stringLiteral(noExtPath),
         );
+    } else if (pugNode.type === 'NamedBlock') {
+        // 2 cases:
+        // 1) we have top-level `extends` and `block` statements
+        //  - `extends` turns into import of base component and
+        //  - `block`s turn into a slot component
+        //  - `block`s cannot appear unindented (always top-level)
+        //  - we should export base component, providing slot components as props
+        //  - edge cases:
+        //      - multiple `extends`: have to track `block`s' relation to base templates?
+        // 2) we don't have top-level `extends` and have `block`s somewhere in the markup
+        //  - we consider this to be a base component
+        //  - each `block` turns into an as-prop (slot)
+        //  - we should export a component receiving slot props and placing them as jsx components in the markup
+        //
+        // notes:
+        //  - non-top-level `extends` can be parsed, but I don't want/know how to support this case for now
+
+        if (walkMeta[path].baseModuleName) {
+
+        } else if () {
+
+        }
     }
 
     if (typeof esNode === 'undefined') throw new Error(`Unsupported pug node type: ${pugNode.type}`);
