@@ -20,7 +20,7 @@ const load = require('pug-load');
 const parsePug = require('pug-parser');
 const literalToAst = require('babel-literal-to-ast');
 
-const pugAttrNameToJsx = name => {
+const pugAttrNameToJsx = (name) => {
     switch (name) {
         case 'class':
             return 'className';
@@ -39,12 +39,15 @@ const pugAttrValToJsx = (name, val) => {
         console.log('val :>> ', val);
         return b.jsxExpressionContainer(
             literalToAst(
-                val.replace(/["\s+]/g, '').split(';').reduce((styles, styleRaw) => {
-                    const style = styleRaw.split(':');
-                    styles[style[0]] = style[1];
-                    return styles;
-                }, {})
-            )
+                val
+                    .replace(/["\s+]/g, '')
+                    .split(';')
+                    .reduce((styles, styleRaw) => {
+                        const style = styleRaw.split(':');
+                        styles[style[0]] = style[1];
+                        return styles;
+                    }, {}),
+            ),
         );
     }
 
@@ -54,14 +57,14 @@ const pugAttrValToJsx = (name, val) => {
     return b.jsxExpressionContainer(parseExpression(val));
 };
 
-const processArrayForConditional = nodesArr => {
+const processArrayForConditional = (nodesArr) => {
     if (nodesArr.length === 0) return b.nullLiteral();
 
     // assuming that we'll get only markup here
     return b.jsxFragment(
         b.jsxOpeningFragment(),
         b.jsxClosingFragment(),
-        nodesArr.map(child => {
+        nodesArr.map((child) => {
             if (child.expression) {
                 return b.jsxExpressionContainer(child.expression);
             }
@@ -88,49 +91,38 @@ function getEsNode(pugNode, esChildren) {
     } else if (pugNode.type === 'Doctype') {
         esNode = b.emptyStatement();
     } else if (pugNode.type === 'Case') {
-        esNode = b.switchStatement(
-            parseExpression(pugNode.expr),
-            esChildren,
-        );
+        esNode = b.switchStatement(parseExpression(pugNode.expr), esChildren);
     } else if (pugNode.type === 'When') {
         esNode = b.switchCase(
             pugNode.expr === 'default' ? null : parseExpression(pugNode.expr),
-            esChildren ?
-                // break statement is implicit by default, FIXME: handle explicit break statements
-                [...[].concat(esChildren), b.breakStatement()] :
-                [],
+            esChildren
+                ? // break statement is implicit by default, FIXME: handle explicit break statements
+                  [...[].concat(esChildren), b.breakStatement()]
+                : [],
         );
     } else if (pugNode.type === 'Conditional') {
         let consequent = walk(pugNode.consequent);
         if (Array.isArray(consequent)) consequent = processArrayForConditional(consequent);
         debug('consequent %O', consequent);
 
-        let alternate = pugNode.alternate && walk(pugNode.alternate) || b.nullLiteral();
+        let alternate = (pugNode.alternate && walk(pugNode.alternate)) || b.nullLiteral();
         if (Array.isArray(alternate)) alternate = processArrayForConditional(alternate);
         debug('alternate %O', alternate);
 
-        esNode = b.conditionalExpression(
-            parseExpression(pugNode.test),
-            consequent,
-            alternate,
-        );
+        esNode = b.conditionalExpression(parseExpression(pugNode.test), consequent, alternate);
     } else if (pugNode.type === 'Each') {
         let children = Array.isArray(esChildren) ? esChildren.flat() : [esChildren];
 
         esNode = b.expressionStatement(
-            b.callExpression(
-                b.memberExpression(b.identifier(pugNode.obj), b.identifier('map')),
-                [b.arrowFunctionExpression(
-                    [
-                        b.identifier(pugNode.val),
-                        pugNode.key ? b.identifier(pugNode.key) : undefined,
-                    ].filter(Boolean),
+            b.callExpression(b.memberExpression(b.identifier(pugNode.obj), b.identifier('map')), [
+                b.arrowFunctionExpression(
+                    [b.identifier(pugNode.val), pugNode.key ? b.identifier(pugNode.key) : undefined].filter(Boolean),
                     b.blockStatement([
                         b.returnStatement(
                             b.jsxFragment(
                                 b.jsxOpeningFragment(),
                                 b.jsxClosingFragment(),
-                                children.map(child => {
+                                children.map((child) => {
                                     if (child.expression) {
                                         return child.expression;
                                     }
@@ -139,64 +131,70 @@ function getEsNode(pugNode, esChildren) {
                             ),
                         ),
                     ]),
-                )]
-            )
+                ),
+            ]),
         );
-    } else if (pugNode.type === 'Mixin' && pugNode.call === false) { // component declaration
-        esNode = b.variableDeclaration(
-            'const',
-            [b.variableDeclarator(
+    } else if (pugNode.type === 'Mixin' && pugNode.call === false) {
+        // component declaration
+        esNode = b.variableDeclaration('const', [
+            b.variableDeclarator(
                 b.identifier(pugNode.name),
                 b.arrowFunctionExpression(
-                    pugNode.args.split(', ').map(arg => b.identifier(arg)), // TODO: generate props destructuring for easier refactoring?
+                    pugNode.args.split(', ').map((arg) => b.identifier(arg)), // TODO: generate props destructuring for easier refactoring?
                     b.blockStatement(esChildren),
-                )
-            )]
-        );
-    } else if (pugNode.type === 'Mixin' && pugNode.call === true) { // component call
-
+                ),
+            ),
+        ]);
+    } else if (pugNode.type === 'Mixin' && pugNode.call === true) {
+        // component call
     } else if (pugNode.type === 'Tag') {
         let children = Array.isArray(esChildren) ? esChildren.flat() : [esChildren];
 
         esNode = b.expressionStatement(
             b.jsxElement(
-                b.jsxOpeningElement(
-                    b.jsxIdentifier(pugNode.name),
-                    [
-                        ...pugNode.attrs.map(attr => b.jsxAttribute(
+                b.jsxOpeningElement(b.jsxIdentifier(pugNode.name), [
+                    ...pugNode.attrs.map((attr) =>
+                        b.jsxAttribute(
                             b.jsxIdentifier(pugAttrNameToJsx(attr.name)),
-                            pugAttrValToJsx(attr.name, attr.val)
-                        )),
-                        ...pugNode.attributeBlocks.map(attrBlock => b.jsxSpreadAttribute(parseExpression(attrBlock.val)))
-                    ]
-                ),
+                            pugAttrValToJsx(attr.name, attr.val),
+                        ),
+                    ),
+                    ...pugNode.attributeBlocks.map((attrBlock) => b.jsxSpreadAttribute(parseExpression(attrBlock.val))),
+                ]),
                 b.jsxClosingElement(b.jsxIdentifier(pugNode.name)),
-                children.map(child => {
+                children.map((child) => {
                     if (!child) {
                         return b.jsxText(''); // FIXME: same as below
-                    } else if (child.expression) { // passthrough
+                    } else if (child.expression) {
+                        // passthrough
                         return b.jsxExpressionContainer(child.expression);
                     } else if (b.isEmptyStatement(child)) {
                         return b.jsxText(' '); // FIXME: hack to override the Text node handler behavior -- ES `program`'s `body` doesn't like jsxText as its children, so I return EmptyExpression there, but have to make this hack here
-                    } else if (!(
-                        b.isJSXText(child) ||
-                        b.isJSXSpreadChild(child) ||
-                        b.isJSXElement(child) ||
-                        b.isJSXFragment(child)
-                    )) {
+                    } else if (
+                        !(
+                            b.isJSXText(child) ||
+                            b.isJSXSpreadChild(child) ||
+                            b.isJSXElement(child) ||
+                            b.isJSXFragment(child)
+                        )
+                    ) {
                         return b.jsxExpressionContainer(child);
                     }
 
                     return child;
                 }) || [],
                 pugNode.selfClosing,
-            )
+            ),
         );
     } else if (pugNode.type === 'InterpolatedTag') {
         esNode = b.jsxExpressionContainer(parseExpression(pugNode.expr));
     } else if (pugNode.type === 'Include') {
         if (pugNode.column !== 1) {
-            console.warn(chalk.yellow(`Skipping ${pugNode.file.path}.\nPlease convert to a mixin, move its import to the top of the file and use as a mixin instead of include, e.g. +myMixin(arg1, arg2, ...)`));
+            console.warn(
+                chalk.yellow(
+                    `Skipping ${pugNode.file.path}.\nPlease convert this file a mixin: move its import to the top of the file and use as a mixin instead of include, e.g. +myMixin(arg1, arg2, ...)`,
+                ),
+            );
             return;
         }
 
@@ -204,10 +202,7 @@ function getEsNode(pugNode, esChildren) {
         const name = noExtPath.split('/').pop().replace('-', ''); // TODO: camel case names
         const specifier = b.identifier(name);
 
-        esNode = b.importDeclaration(
-            [b.importSpecifier(specifier, specifier)],
-            b.stringLiteral(noExtPath),
-        );
+        esNode = b.importDeclaration([b.importSpecifier(specifier, specifier)], b.stringLiteral(noExtPath));
     } else if (pugNode.type === 'RawInclude') {
         console.warn(chalk.yellow(`Skipping ${pugNode.file.path}. Please handle these files manually.`));
         return;
@@ -220,7 +215,7 @@ function getEsNode(pugNode, esChildren) {
 
 function walk(pugNode) {
     if (Array.isArray(pugNode)) {
-        return pugNode.map(n => walk(n));
+        return pugNode.map((n) => walk(n));
     }
 
     const pugChildren = pugNode.nodes || pugNode.block;
@@ -239,28 +234,30 @@ function walk(pugNode) {
 module.exports.convert = function convert(paths) {
     const res = {};
 
-    paths.forEach(path => {
+    paths.forEach((path) => {
         const pugAst = load.file(path, {
             lex,
             parse: parsePug,
             resolve: function (filename, source, options) {
                 console.log('"' + filename + '" file requested from "' + source + '".');
                 return load.resolve(filename, source, options);
-            }
+            },
         });
 
         debug('Pug AST: %O', pugAst);
         const walkRes = walk(pugAst);
         debug('Pug AST walk: %O', walkRes);
-        const esAst = b.program([].concat(...walkRes).map(res => {
-            // probably a hack for cases when we get a "bare" or an empty expression
-            // that is not a statement as required by b.program()'s body param,
-            // see conditionals/unless test
-            if (!res) return b.emptyStatement();
-            if (!b.isStatement(res)) return b.expressionStatement(res);
+        const esAst = b.program(
+            [].concat(...walkRes).map((res) => {
+                // probably a hack for cases when we get a "bare" or an empty expression
+                // that is not a statement as required by b.program()'s body param,
+                // see conditionals/unless test
+                if (!res) return b.emptyStatement();
+                if (!b.isStatement(res)) return b.expressionStatement(res);
 
-            return res;
-        }));
+                return res;
+            }),
+        );
         debug('ES AST: %O', esAst);
         const { code } = generate(esAst);
         debug('resulting code: %o', code);

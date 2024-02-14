@@ -3,9 +3,7 @@ const { readFile } = require('fs/promises');
 const { convert } = require('../../index');
 
 describe('misc / doctype,TBD', () => {
-    test.each([
-        ['doctype'],
-    ])('%s', async (path) => {
+    test.each([['doctype']])('%s', async (path) => {
         path = resolve(__dirname, path);
 
         const actual = convert([`${path}.pug`])[`${path}.pug`];
